@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Núclea SLC — Monitor de Saques</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f5f3;
+    --surface: #ffffff;
+    --surface2: #f0efeb;
+    --border: rgba(0,0,0,0.08);
+    --border-strong: rgba(0,0,0,0.14);
+    --text: #1a1a18;
+    --text2: #5a5a56;
+    --text3: #9a9a94;
+    --green: #0f6e56; --green-bg: #e1f5ee; --green-mid: #1D9E75;
+    --blue: #185FA5; --blue-bg: #e6f1fb; --blue-mid: #378ADD;
+    --amber: #854F0B; --amber-bg: #faeeda; --amber-mid: #EF9F27;
+    --coral: #993C1D; --coral-bg: #faece7; --coral-mid: #D85A30;
+    --red: #A32D2D; --red-bg: #fcebeb; --red-mid: #E24B4A;
+    --purple: #5B21B6; --purple-bg: #ede9fe;
+    --gray-bg: #f0f0ee; --gray: #555552;
+    --radius: 12px; --radius-sm: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --surface: #242422; --surface2: #2e2e2c;
+      --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.14);
+      --text: #e8e8e2; --text2: #a0a09a; --text3: #666660;
+      --green-bg: #04342C; --blue-bg: #042C53; --amber-bg: #412402;
+      --coral-bg: #4A1B0C; --red-bg: #501313;
+      --purple-bg: #2D1B69; --gray-bg: #2a2a28; --gray: #a0a09a;
+    }
+  }
+  body { background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px; }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 2px; margin-bottom: 20px; border-bottom: 1.5px solid var(--border); }
+  .tab-btn { font-size: 13px; font-weight: 500; padding: 8px 16px; border-radius: var(--radius-sm) var(--radius-sm) 0 0; cursor: pointer; color: var(--text2); border: none; background: none; position: relative; bottom: -1.5px; border-bottom: 2px solid transparent; }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--blue); border-bottom: 2px solid var(--blue); background: var(--surface); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Instruções */
+  .tbl-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .tbl-scroll { overflow-x: auto; }
+  table.itbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.itbl thead th { background: var(--surface2); font-weight: 500; color: var(--text2); padding: 10px 14px; text-align: left; border-bottom: 0.5px solid var(--border-strong); font-size: 12px; white-space: nowrap; cursor: pointer; user-select: none; }
+  table.itbl thead th:hover { color: var(--text); }
+  table.itbl thead th .si { margin-left: 3px; opacity: 0.35; font-size: 10px; }
+  table.itbl thead th.isorted .si { opacity: 1; color: var(--blue); }
+  table.itbl tbody tr { border-bottom: 0.5px solid var(--border); }
+  table.itbl tbody tr:last-child { border-bottom: none; }
+  table.itbl tbody tr:hover { background: var(--surface2); }
+  table.itbl tbody td { padding: 9px 14px; white-space: nowrap; vertical-align: middle; }
+  .td-mono { font-family: monospace; font-size: 11px; color: var(--text2); }
+  .td-val { font-weight: 500; }
+  .td-err { font-size: 11px; color: var(--red); max-width: 220px; overflow: hidden; text-overflow: ellipsis; cursor: help; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; white-space: nowrap; display: inline-block; }
+  .p-enviado   { background: var(--blue-bg);   color: var(--blue); }
+  .p-pendente  { background: var(--amber-bg);  color: var(--amber); }
+  .p-aceito    { background: var(--green-bg);  color: var(--green); }
+  .p-rejeitado { background: var(--red-bg);    color: var(--red); }
+  .p-liquidado { background: var(--green-bg);  color: var(--green); }
+  .p-falha     { background: var(--red-bg);    color: var(--red); }
+  .p-parcial   { background: var(--coral-bg);  color: var(--coral); }
+  .p-cancelado { background: var(--gray-bg);   color: var(--gray); }
+  .p-siloc     { background: #e0f2fe; color: #0369a1; }
+  .p-registro  { background: var(--purple-bg); color: var(--purple); }
+  .p-credito   { background: var(--green-bg);  color: var(--green); }
+  .p-debito    { background: var(--amber-bg);  color: var(--amber); }
+  .fi { font-size: 13px; padding: 6px 10px; border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; }
+  .fi:focus { border-color: var(--blue); }
+  input.fi { width: 115px; }
+  select.fi { cursor: pointer; }
+  .btn-clr { font-size: 12px; padding: 6px 12px; border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text2); cursor: pointer; }
+  .btn-clr:hover { background: var(--surface2); }
+  .btn-imp { font-size: 13px; padding: 7px 16px; background: var(--blue); color: #fff; border-radius: var(--radius-sm); cursor: pointer; font-weight: 500; border: none; }
+  .btn-imp:hover { opacity: 0.9; }
+  .ikpi-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .ikpi { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 14px; min-width: 100px; }
+  .ikpi-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+  .ikpi-val { font-size: 18px; font-weight: 600; }
+  .ikpi-sub { font-size: 11px; color: var(--text2); margin-top: 1px; }
+  .ipg { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 0.5px solid var(--border); font-size: 12px; color: var(--text2); flex-wrap: wrap; gap: 8px; }
+  .ipg-btns { display: flex; gap: 4px; }
+  .ipg-btn { padding: 4px 10px; border: 0.5px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text2); cursor: pointer; font-size: 12px; }
+  .ipg-btn:hover:not(:disabled) { background: var(--surface2); }
+  .ipg-btn:disabled { opacity: 0.35; cursor: default; }
+  .ipg-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .itbl-empty { text-align: center; padding: 48px 20px; color: var(--text3); font-size: 13px; }
+
+  /* Header */
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo { width: 40px; height: 40px; border-radius: 10px; background: #1a2e4a; display: flex; align-items: center; justify-content: center; }
+  .logo svg { width: 22px; height: 22px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .title { font-size: 17px; font-weight: 600; }
+  .subtitle { font-size: 13px; color: var(--text2); margin-top: 2px; }
+  .badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 500; display: flex; align-items: center; gap: 5px; }
+  .badge-ok  { background: var(--green-bg); color: var(--green); }
+  .badge-err { background: var(--red-bg);   color: var(--red); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.35} }
+  .meta { font-size: 12px; color: var(--text3); }
+
+  /* KPI grid */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .kpi { background: var(--surface2); border-radius: var(--radius-sm); padding: 14px 16px; }
+  .kpi-icon { font-size: 20px; margin-bottom: 8px; }
+  .kpi-label { font-size: 12px; color: var(--text2); margin-bottom: 3px; }
+  .kpi-value { font-size: 22px; font-weight: 600; }
+  .kpi-money { font-size: 13px; color: var(--text2); margin-top: 3px; }
+  .kpi-empty { color: var(--text3); font-size: 13px; margin-top: 4px; }
+
+  /* Charts row */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 640px) { .charts-row { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .card-title { font-size: 14px; font-weight: 500; margin-bottom: 14px; }
+
+  /* Pendências breakdown */
+  .pend-grid { display: grid; gap: 10px; }
+  .pend-item { display: flex; align-items: center; gap: 12px; }
+  .pend-label { font-size: 13px; flex: 1; color: var(--text); }
+  .pend-bar-wrap { flex: 2; background: var(--surface2); border-radius: 4px; height: 7px; overflow: hidden; }
+  .pend-bar { height: 100%; border-radius: 4px; transition: width .6s ease; }
+  .pend-val { font-size: 12px; color: var(--text2); min-width: 80px; text-align: right; }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .leg { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); }
+  .leg-sq { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Alert banner */
+  .alert { border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 20px; font-size: 13px; display: none; }
+  .alert-warn { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-mid); }
+  .alert-err  { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-mid); display: block; }
+
+  /* Error state */
+  .error-state { text-align: center; padding: 60px 20px; color: var(--text2); }
+  .error-state h2 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+  .error-state code { font-size: 12px; background: var(--surface2); padding: 8px 14px; border-radius: 6px; display: inline-block; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="error-banner" class="alert alert-err" style="display:none"></div>
+
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+      </div>
+      <div>
+        <div class="title">Núclea SLC — Monitor de Saques</div>
+        <div class="subtitle" id="sub-data">Carregando...</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="status-badge" class="badge badge-ok"><span class="dot"></span>Atualizado</span>
+      <span class="meta" id="meta-hora"></span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('monitor')">📊 Monitor</button>
+    <button class="tab-btn" onclick="switchTab('instrucoes')">📋 Instruções</button>
+  </div>
+
+  <!-- TAB MONITOR -->
+  <div id="tab-monitor" class="tab-panel active">
+  <div id="main-content" style="display:none">
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-icon" style="color:var(--amber-mid)">⏱</div>
+        <div class="kpi-label">Liquidação atrasada</div>
+        <div class="kpi-value" id="kv-atra" style="color:var(--amber)">—</div>
+        <div class="kpi-money" id="km-atra">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon" style="color:var(--coral-mid)">✕</div>
+        <div class="kpi-label">Rejeitados Núclea</div>
+        <div class="kpi-value" id="kv-rej" style="color:var(--coral)">—</div>
+        <div class="kpi-money" id="km-rej">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon" style="color:var(--red-mid)">⚡</div>
+        <div class="kpi-label">Falha técnica</div>
+        <div class="kpi-value" id="kv-fal" style="color:var(--red)">—</div>
+        <div class="kpi-money" id="km-fal">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon" style="color:var(--blue-mid)">🏦</div>
+        <div class="kpi-label">Aguard. confirmação banco</div>
+        <div class="kpi-value" id="kv-banco" style="color:var(--blue)">—</div>
+        <div class="kpi-money" id="km-banco">—</div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-title">Distribuição por valor (R$)</div>
+        <div class="legend" id="legend-pizza"></div>
+        <div style="position:relative;height:200px;">
+          <canvas id="chart-pizza" role="img" aria-label="Distribuição de valor entre os status de saques"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Pendências — proporção do total</div>
+        <div class="pend-grid" id="pend-grid"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <span style="font-size:14px;font-weight:500">⚠ Instruções Pendentes de Correção — Hoje</span>
+        <span id="pending-count" style="font-size:12px;background:var(--amber-bg);color:var(--amber);padding:2px 10px;border-radius:20px;font-weight:500">0 instrução(ões)</span>
+      </div>
+      <div id="pending-table-wrap"></div>
+    </div>
+
+  </div>
+
+  <div id="error-state" class="error-state" style="display:none">
+    <h2>Arquivo de dados não encontrado</h2>
+    <p>Execute o script para gerar os dados antes de abrir o dashboard.</p>
+    <code>python slack_reader.py</code>
+  </div>
+  </div><!-- /tab-monitor -->
+
+  <!-- TAB INSTRUÇÕES -->
+  <div id="tab-instrucoes" class="tab-panel">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+      <div>
+        <div style="font-size:14px;font-weight:500">Instruções Núclea</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px" id="i-sub">Carregando...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="i-status" style="display:none;font-size:12px;padding:3px 10px;border-radius:20px;font-weight:500"></span>
+        <button class="btn-imp" onclick="iCarregarGitHub()">↻ Atualizar</button>
+        <label class="btn-imp" style="background:var(--surface2);color:var(--text2);border:0.5px solid var(--border-strong)">⬆ Upload manual<input type="file" id="i-file" accept=".json" style="display:none" onchange="iImportar(this)"></label>
+      </div>
+    </div>
+
+    <div class="ikpi-row" id="i-kpis" style="display:none">
+      <div class="ikpi"><div class="ikpi-label">Total</div><div class="ikpi-val" id="ik-tot">—</div></div>
+      <div class="ikpi"><div class="ikpi-label">Liquidados</div><div class="ikpi-val" style="color:var(--green)" id="ik-liq">—</div><div class="ikpi-sub" id="ik-liq-v"></div></div>
+      <div class="ikpi"><div class="ikpi-label">Enviados</div><div class="ikpi-val" style="color:var(--blue)" id="ik-env">—</div></div>
+      <div class="ikpi"><div class="ikpi-label">Aceitos</div><div class="ikpi-val" style="color:var(--green)" id="ik-ace">—</div></div>
+      <div class="ikpi"><div class="ikpi-label">Rejeitados</div><div class="ikpi-val" style="color:var(--red)" id="ik-rej">—</div><div class="ikpi-sub" id="ik-rej-v"></div></div>
+      <div class="ikpi"><div class="ikpi-label">Pendentes</div><div class="ikpi-val" style="color:var(--amber)" id="ik-pen">—</div></div>
+      <div class="ikpi"><div class="ikpi-label">Falha</div><div class="ikpi-val" style="color:var(--red)" id="ik-fal">—</div></div>
+      <div class="ikpi"><div class="ikpi-label">Cancelados</div><div class="ikpi-val" id="ik-can">—</div></div>
+    </div>
+
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input  class="fi" id="if-id"      placeholder="ID"       oninput="iFiltrar()" />
+        <input  class="fi" id="if-shop"    placeholder="Shop"     oninput="iFiltrar()" />
+        <input  class="fi" id="if-payout"  placeholder="Payout"   oninput="iFiltrar()" />
+        <input  class="fi" id="if-merchant"placeholder="Merchant" oninput="iFiltrar()" />
+        <select class="fi" id="if-fluxo"   onchange="iFiltrar()"><option value="">Fluxo</option><option>SILOC</option><option>Registro</option></select>
+        <select class="fi" id="if-op"      onchange="iFiltrar()"><option value="">Operação</option><option>Crédito</option><option>Débito</option></select>
+        <select class="fi" id="if-estado"  onchange="iFiltrar()">
+          <option value="">Estado</option><option>Pendente</option><option>Enviado</option>
+          <option>Aceito</option><option>Rejeitado</option><option>Liquidado</option>
+          <option>Parcialmente aceito</option><option>Falha</option><option>Cancelado</option>
+        </select>
+        <select class="fi" id="if-erro" onchange="iFiltrar()"><option value="">Cód. erro</option></select>
+        <button class="btn-clr" onclick="iLimpar()">✕ Limpar</button>
+        <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="i-count"></span>
+      </div>
+    </div>
+
+    <div class="tbl-card">
+      <div class="tbl-scroll">
+        <table class="itbl">
+          <thead><tr>
+            <th onclick="iSort('id')">ID <span class="si">↕</span></th>
+            <th onclick="iSort('shop')">Shop <span class="si">↕</span></th>
+            <th onclick="iSort('merchant')">Merchant <span class="si">↕</span></th>
+            <th onclick="iSort('payout')">Payout <span class="si">↕</span></th>
+            <th onclick="iSort('valor')">Valor <span class="si">↕</span></th>
+            <th onclick="iSort('qtd_itens')">Itens <span class="si">↕</span></th>
+            <th onclick="iSort('fluxo')">Fluxo <span class="si">↕</span></th>
+            <th onclick="iSort('operacao')">Operação <span class="si">↕</span></th>
+            <th onclick="iSort('estado')">Estado <span class="si">↕</span></th>
+            <th onclick="iSort('tentativas')">Tent. <span class="si">↕</span></th>
+            <th onclick="iSort('num_ctrl')">Num Ctrl <span class="si">↕</span></th>
+            <th onclick="iSort('num_ctrl_cip')">NumCtrlCip <span class="si">↕</span></th>
+            <th onclick="iSort('parent_id')">Pai <span class="si">↕</span></th>
+            <th onclick="iSort('enviado_em')">Enviado em <span class="si">↕</span></th>
+            <th onclick="iSort('respondido_em')">Respondido em <span class="si">↕</span></th>
+            <th onclick="iSort('erro')">Erro <span class="si">↕</span></th>
+          </tr></thead>
+          <tbody id="itbody">
+            <tr><td colspan="16"><div class="itbl-empty">Importe um JSON do Retool para visualizar as instruções.</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="ipg" id="i-pg" style="display:none">
+        <span id="i-pg-info"></span>
+        <div class="ipg-btns" id="i-pg-btns"></div>
+      </div>
+    </div>
+
+  </div><!-- /tab-instrucoes -->
+
+</div>
+
+<script>
+const DADOS_INJETADOS = {"data_ref": "2026-05-19", "total_valor": 614205.69, "liquidados": {"qtd": 0, "valor": 0.0}, "devolvidos": {"qtd": 0, "valor": 0.0}, "atrasados": {"qtd": 92, "valor": 55005.13}, "rejeitados": {"qtd": 8, "valor": 4046.52}, "falhas": {"qtd": 12, "valor": 8491.47}, "banco_pendente": {"qtd": 3483, "valor": 546662.57}, "atualizado_em": "19/05/2026 15:56"};
+const PENDENTES_INJETADOS = [];
+</script>
+<script>
+const BRL  = v => v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+const NUM  = v => v > 0 ? v.toLocaleString('pt-BR') : '—';
+const ABBR = v => {
+  if (!v) return '—';
+  if (v >= 1000000) return 'R$ ' + (v/1000000).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + 'M';
+  if (v >= 1000)    return 'R$ ' + Math.round(v/1000).toLocaleString('pt-BR') + 'k';
+  return BRL(v);
+};
+
+function aplicarDados(d) {
+  document.getElementById('main-content').style.display = '';
+  document.getElementById('error-state').style.display = 'none';
+
+  const dr = d.data_ref ? d.data_ref.split('-').reverse().join('/') : '—';
+  document.getElementById('sub-data').textContent = 'Data ref: ' + dr + ' · Total: ' + BRL(d.total_valor || 0);
+  document.getElementById('meta-hora').textContent = 'Atualizado ' + (d.atualizado_em || '');
+
+  const set = (id, qtd, val) => {
+    const ve = document.getElementById('kv-' + id);
+    const me = document.getElementById('km-' + id);
+    if (!ve) return;
+    if (qtd > 0) { ve.textContent = NUM(qtd); me.textContent = val > 0 ? BRL(val) : '—'; }
+    else if (val > 0) { ve.textContent = ABBR(val); me.textContent = BRL(val); }
+    else { ve.textContent = '—'; me.textContent = '—'; }
+  };
+  set('liq',   d.liquidados?.qtd     || 0, d.liquidados?.valor     || 0);
+  set('dev',   d.devolvidos?.qtd     || 0, d.devolvidos?.valor     || 0);
+  set('atra',  d.atrasados?.qtd      || 0, d.atrasados?.valor      || 0);
+  set('rej',   d.rejeitados?.qtd     || 0, d.rejeitados?.valor     || 0);
+  set('fal',   d.falhas?.qtd         || 0, d.falhas?.valor         || 0);
+  set('banco', d.banco_pendente?.qtd || 0, d.banco_pendente?.valor || 0);
+
+  // Alerta se há pendências críticas
+  const banner = document.getElementById('error-banner');
+  const criticos = (d.rejeitados?.qtd||0) + (d.falhas?.qtd||0);
+  if (criticos > 0) {
+    banner.style.display = '';
+    banner.className = 'alert alert-err';
+    banner.textContent = '⚠ Atenção: ' + criticos + ' instrução(ões) crítica(s) — ' +
+      (d.rejeitados?.qtd||0) + ' rejeitada(s) + ' + (d.falhas?.qtd||0) + ' com falha técnica.';
+  }
+
+  // Gráfico de pizza
+  const itens = [
+    { label: 'Liquidados',    val: d.liquidados?.valor||0,    cor: '#1D9E75' },
+    { label: 'Devolvidos',    val: d.devolvidos?.valor||0,    cor: '#378ADD' },
+    { label: 'Atrasados',     val: d.atrasados?.valor||0,     cor: '#EF9F27' },
+    { label: 'Rejeitados',    val: d.rejeitados?.valor||0,    cor: '#D85A30' },
+    { label: 'Falha técnica', val: d.falhas?.valor||0,        cor: '#E24B4A' },
+    { label: 'Aguard. banco', val: d.banco_pendente?.valor||0,cor: '#185FA5' },
+  ].filter(i => i.val > 0);
+
+  const total = itens.reduce((s,i) => s + i.val, 0);
+  const leg = document.getElementById('legend-pizza');
+  leg.innerHTML = itens.map(i =>
+    `<span class="leg"><span class="leg-sq" style="background:${i.cor}"></span>${i.label} ${((i.val/total)*100).toFixed(1)}%</span>`
+  ).join('');
+
+  new Chart(document.getElementById('chart-pizza'), {
+    type: 'doughnut',
+    data: {
+      labels: itens.map(i => i.label),
+      datasets: [{ data: itens.map(i => i.val), backgroundColor: itens.map(i => i.cor), borderWidth: 2, borderColor: 'transparent', hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + BRL(ctx.raw) } }
+      }
+    }
+  });
+
+  // Barras de pendências
+  const pendencias = [
+    { label: 'Liquidação atrasada', val: d.atrasados?.valor||0,      cor: '#EF9F27', qtd: d.atrasados?.qtd||0 },
+    { label: 'Rejeitados Núclea',   val: d.rejeitados?.valor||0,     cor: '#D85A30', qtd: d.rejeitados?.qtd||0 },
+    { label: 'Falha técnica',       val: d.falhas?.valor||0,         cor: '#E24B4A', qtd: d.falhas?.qtd||0 },
+    { label: 'Devolvidos',          val: d.devolvidos?.valor||0,     cor: '#378ADD', qtd: d.devolvidos?.qtd||0 },
+    { label: 'Aguard. confirmação', val: d.banco_pendente?.valor||0, cor: '#185FA5', qtd: d.banco_pendente?.qtd||0 },
+  ];
+  const maxPend = Math.max(...pendencias.map(p => p.val), 1);
+  const grid = document.getElementById('pend-grid');
+  grid.innerHTML = pendencias.map(p => {
+    const pct = Math.round((p.val / maxPend) * 100);
+    return `<div class="pend-item">
+      <span class="pend-label">${p.label}${p.qtd > 0 ? ' <small style="color:var(--text3)">(' + p.qtd + ')</small>' : ''}</span>
+      <div class="pend-bar-wrap"><div class="pend-bar" style="width:${pct}%;background:${p.cor}"></div></div>
+      <span class="pend-val">${p.val > 0 ? BRL(p.val) : '—'}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderPendentes(lista) {
+  const wrap  = document.getElementById('pending-table-wrap');
+  const count = document.getElementById('pending-count');
+  if (!lista || lista.length === 0) {
+    count.textContent = '0 instrução(ões)';
+    count.style.background = 'var(--green-bg)'; count.style.color = 'var(--green)';
+    wrap.innerHTML = '<div style="font-size:13px;color:var(--text3);padding:16px;text-align:center;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius)">Nenhuma instrução pendente hoje ✓</div>';
+    return;
+  }
+  count.textContent = lista.length + ' instrução(ões)';
+  const rows = lista.map(p => `<tr>
+    <td><strong>#${p.filha}</strong></td><td>#${p.pai}</td><td>${p.shop}</td><td>${p.payout}</td><td>${p.hora}</td>
+    <td><span style="font-size:11px;background:var(--amber-bg);color:var(--amber);padding:2px 8px;border-radius:10px;font-weight:500">PENDING</span></td>
+  </tr>`).join('');
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);overflow:hidden">
+    <thead><tr>
+      <th style="background:var(--surface2);font-weight:500;color:var(--text2);padding:10px 14px;text-align:left;border-bottom:0.5px solid var(--border-strong);font-size:12px">Instrução Filha</th>
+      <th style="background:var(--surface2);font-weight:500;color:var(--text2);padding:10px 14px;text-align:left;border-bottom:0.5px solid var(--border-strong);font-size:12px">Instrução Pai</th>
+      <th style="background:var(--surface2);font-weight:500;color:var(--text2);padding:10px 14px;text-align:left;border-bottom:0.5px solid var(--border-strong);font-size:12px">Shop</th>
+      <th style="background:var(--surface2);font-weight:500;color:var(--text2);padding:10px 14px;text-align:left;border-bottom:0.5px solid var(--border-strong);font-size:12px">Payout</th>
+      <th style="background:var(--surface2);font-weight:500;color:var(--text2);padding:10px 14px;text-align:left;border-bottom:0.5px solid var(--border-strong);font-size:12px">Hora</th>
+      <th style="background:var(--surface2);font-weight:500;color:var(--text2);padding:10px 14px;text-align:left;border-bottom:0.5px solid var(--border-strong);font-size:12px">Status</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', ['monitor','instrucoes'][i] === id));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + id));
+  if (id === 'instrucoes' && iDados.length === 0) iCarregarGitHub();
+}
+
+// ── Instruções ────────────────────────────────────────────────────────────────
+let iDados=[], iFiltrados=[], iSortCol='id', iSortDir=-1, iPg=1;
+const IPG = 25;
+const ICOLS = ['id','shop','merchant','payout','valor','qtd_itens','fluxo','operacao','estado','tentativas','num_ctrl','num_ctrl_cip','parent_id','enviado_em','respondido_em','erro'];
+
+// URL raw do GitHub — ajuste se o nome do repo ou usuário mudar
+const GITHUB_JSON_URL = 'https://raw.githubusercontent.com/barbieri-chasseraux/nuclea-dashboard/main/instrucoes.json';
+
+function iSetStatus(tipo, msg) {
+  const st = document.getElementById('i-status');
+  st.style.display = '';
+  st.style.background = tipo === 'ok' ? 'var(--green-bg)' : tipo === 'err' ? 'var(--red-bg)' : 'var(--amber-bg)';
+  st.style.color      = tipo === 'ok' ? 'var(--green)'    : tipo === 'err' ? 'var(--red)'    : 'var(--amber)';
+  st.textContent = msg;
+}
+
+function iCarregarDados(raw, fonte) {
+  const isRetool = Array.isArray(raw) && raw.length > 0 && raw[0]["ID"] !== undefined;
+  iDados = isRetool ? raw.map(iParseRetool) : raw;
+  iFiltrados = [...iDados];
+  iPopularErros(); iKPIs(); iPg = 1; iRender();
+  document.getElementById('i-sub').textContent = `${iDados.length} instruções · ${fonte}`;
+  document.getElementById('i-kpis').style.display = '';
+}
+
+function iCarregarGitHub() {
+  iSetStatus('warn', '⏳ Carregando...');
+  document.getElementById('i-sub').textContent = 'Buscando dados do GitHub...';
+  fetch(GITHUB_JSON_URL + '?t=' + Date.now())
+    .then(r => {
+      if (!r.ok) throw new Error('Arquivo não encontrado no GitHub');
+      return r.json();
+    })
+    .then(raw => {
+      iCarregarDados(raw, 'instrucoes.json (GitHub)');
+      iSetStatus('ok', '✓ Atualizado do GitHub');
+    })
+    .catch(err => {
+      iSetStatus('err', '✗ ' + err.message);
+      document.getElementById('i-sub').textContent = 'Não foi possível carregar do GitHub. Use upload manual.';
+      document.getElementById('itbody').innerHTML = `<tr><td colspan="16"><div class="itbl-empty">instrucoes.json não encontrado no GitHub.<br><small>Faça upload do arquivo no repositório ou use o botão "Upload manual".</small></div></td></tr>`;
+    });
+}
+
+function iImportar(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const raw = JSON.parse(e.target.result);
+      iCarregarDados(raw, file.name);
+      iSetStatus('ok', `✓ ${file.name} — ${iDados.length} registros`);
+    } catch(err) { alert('Erro ao ler JSON: ' + err.message); }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function iParseRetool(r) {
+  const amt = v => { try { return Math.round(parseInt(String(v).replace(/,/g,'')) / 100 * 100) / 100; } catch { return null; } };
+  const dt  = v => {
+    if (!v) return '';
+    const m = String(v).match(/(\d+)\s+(\w+),\s+(\d+),\s+(\d+):(\d+)\s+(AM|PM)/);
+    if (m) { const mo={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12}; let h=parseInt(m[4]); if(m[6]==='PM'&&h<12)h+=12; if(m[6]==='AM'&&h===12)h=0; return `${m[1].padStart(2,'0')}/${String(mo[m[2]]).padStart(2,'0')}/${m[3]} ${String(h).padStart(2,'0')}:${m[5]}`; }
+    return String(v);
+  };
+  const fl = {"3":"SILOC","6":"Registro"};
+  const op = {"credit":"Crédito","debit":"Débito"};
+  const st = {"pending":"Pendente","queued":"Pendente","submitted":"Enviado","accepted":"Aceito","rejected":"Rejeitado","settled":"Liquidado","partially_accepted":"Parcialmente aceito","failed":"Falha","cancelled":"Cancelado"};
+  return {
+    id: r["ID"]||'', shop: String(r["Shop ID"]||'').replace(/,/g,''),
+    payout: String(r["Cartpanda Pay Payout ID"]||'').replace(/,/g,''),
+    merchant: r["Merchant Name"]||'', valor: amt(r["Total Amount"]),
+    qtd_itens: parseInt(String(r["Items Count"]||0).replace(/,/g,'')),
+    fluxo: fl[String(r["Flow Type"])] || String(r["Flow Type"]||''),
+    operacao: op[String(r["Operation Type"]||'').toLowerCase()] || String(r["Operation Type"]||''),
+    estado: st[String(r["State"]||'').toLowerCase()] || String(r["State"]||''),
+    num_ctrl: r["Control Number"]||'', num_ctrl_cip: r["Response Payload → NumCtrlCip"]||'',
+    parent_id: r["Parent Instruction ID"]||'', tentativas: r["Attempts"]||'',
+    erro: r["Error Message"]||'', enviado_em: dt(r["Submitted At"]), respondido_em: dt(r["Responded At"]),
+  };
+}
+
+function iPopularErros() {
+  const sel = document.getElementById('if-erro'); const atual = sel.value;
+  const codes = [...new Set(iDados.flatMap(r => { const err=r.erro||''; const c=err.match(/ESLC\d+/g)||[]; if(/devolvida pela id/i.test(err)) c.push('Devolvida pela ID'); return c; }))].sort();
+  sel.innerHTML = '<option value="">Cód. erro</option>' + codes.map(c => `<option ${c===atual?'selected':''}>${c}</option>`).join('');
+}
+
+function iKPIs() {
+  const cnt = s => iDados.filter(r => r.estado === s).length;
+  const sum = s => iDados.filter(r => r.estado === s).reduce((a,r) => a + (r.valor||0), 0);
+  document.getElementById('ik-tot').textContent = iDados.length.toLocaleString('pt-BR');
+  const liq=cnt('Liquidado'), liqV=sum('Liquidado'), rej=cnt('Rejeitado'), rejV=sum('Rejeitado');
+  document.getElementById('ik-liq').textContent = liq > 0 ? liq.toLocaleString('pt-BR') : '—';
+  document.getElementById('ik-liq-v').textContent = liq > 0 ? BRL(liqV) : '';
+  document.getElementById('ik-env').textContent = cnt('Enviado') || '—';
+  document.getElementById('ik-ace').textContent = cnt('Aceito') || '—';
+  document.getElementById('ik-rej').textContent = rej > 0 ? rej.toLocaleString('pt-BR') : '—';
+  document.getElementById('ik-rej-v').textContent = rej > 0 ? BRL(rejV) : '';
+  document.getElementById('ik-pen').textContent = cnt('Pendente') || '—';
+  document.getElementById('ik-fal').textContent = cnt('Falha') || '—';
+  document.getElementById('ik-can').textContent = cnt('Cancelado') || '—';
+}
+
+function iFiltrar() {
+  iPg = 1;
+  const v = id => document.getElementById(id).value.toLowerCase();
+  const id=v('if-id'), sh=v('if-shop'), py=v('if-payout'), mc=v('if-merchant'),
+        fl=v('if-fluxo'), op=v('if-op'), es=v('if-estado'),
+        er=document.getElementById('if-erro').value;
+  const mErr = r => { if(!er) return true; if(er==='Devolvida pela ID') return /devolvida pela id/i.test(r.erro||''); return (r.erro||'').includes(er); };
+  iFiltrados = iDados.filter(r =>
+    (!id || String(r.id).toLowerCase().includes(id)) &&
+    (!sh || String(r.shop).toLowerCase().includes(sh)) &&
+    (!py || String(r.payout).toLowerCase().includes(py)) &&
+    (!mc || String(r.merchant).toLowerCase().includes(mc)) &&
+    (!fl || String(r.fluxo).toLowerCase().includes(fl)) &&
+    (!op || String(r.operacao).toLowerCase().includes(op)) &&
+    (!es || String(r.estado).toLowerCase().includes(es)) &&
+    mErr(r)
+  );
+  iRender();
+}
+
+function iLimpar() {
+  ['if-id','if-shop','if-payout','if-merchant'].forEach(x => document.getElementById(x).value = '');
+  ['if-fluxo','if-op','if-estado','if-erro'].forEach(x => document.getElementById(x).value = '');
+  iFiltrar();
+}
+
+function iSort(col) {
+  if (iSortCol===col) iSortDir*=-1; else { iSortCol=col; iSortDir=-1; }
+  iFiltrados.sort((a,b) => { const av=a[col]??'', bv=b[col]??''; if(typeof av==='number') return (av-bv)*iSortDir; return String(av).localeCompare(String(bv),'pt-BR')*iSortDir; });
+  iRender();
+}
+
+const iPillE = e => { const m={'pendente':'p-pendente','enviado':'p-enviado','aceito':'p-aceito','rejeitado':'p-rejeitado','liquidado':'p-liquidado','parcialmente aceito':'p-parcial','falha':'p-falha','cancelado':'p-cancelado'}; const k=(e||'').toLowerCase(); const cls=Object.keys(m).find(x=>k.includes(x))||''; return `<span class="pill ${m[cls]||''}">${e||'—'}</span>`; };
+const iPillF = f => { const k=(f||'').toLowerCase(); return `<span class="pill ${k.includes('siloc')?'p-siloc':k.includes('regis')?'p-registro':''}">${f||'—'}</span>`; };
+const iPillO = o => { const k=(o||'').toLowerCase(); return `<span class="pill ${k.includes('créd')||k.includes('cred')?'p-credito':k.includes('déb')||k.includes('deb')?'p-debito':''}">${o||'—'}</span>`; };
+
+function iRender() {
+  const total=iFiltrados.length, totalPgs=Math.max(1,Math.ceil(total/IPG));
+  if (iPg>totalPgs) iPg=totalPgs;
+  const slice=iFiltrados.slice((iPg-1)*IPG, iPg*IPG);
+  document.getElementById('i-count').textContent = total.toLocaleString('pt-BR') + ' resultado(s)';
+  const tbody = document.getElementById('itbody');
+  tbody.innerHTML = slice.length === 0
+    ? `<tr><td colspan="16"><div class="itbl-empty">Nenhum resultado encontrado.</div></td></tr>`
+    : slice.map(r => `<tr>
+        <td><strong>#${r.id}</strong>${r.parent_id ? ` <small style="color:var(--text3);font-size:11px">↳#${r.parent_id}</small>` : ''}</td>
+        <td>${r.shop||'—'}</td>
+        <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis" title="${r.merchant||''}">${r.merchant||'—'}</td>
+        <td>${r.payout||'—'}</td>
+        <td class="td-val">${r.valor!=null?BRL(r.valor):'—'}</td>
+        <td style="text-align:center">${r.qtd_itens||'—'}</td>
+        <td>${iPillF(r.fluxo)}</td><td>${iPillO(r.operacao)}</td><td>${iPillE(r.estado)}</td>
+        <td style="text-align:center;color:var(--text2)">${r.tentativas||'—'}</td>
+        <td class="td-mono">${r.num_ctrl||'—'}</td>
+        <td class="td-mono">${r.num_ctrl_cip||'—'}</td>
+        <td style="text-align:center;color:var(--text2)">${r.parent_id?`#${r.parent_id}`:'—'}</td>
+        <td class="td-mono" style="font-size:11px">${r.enviado_em||'—'}</td>
+        <td class="td-mono" style="font-size:11px">${r.respondido_em||'—'}</td>
+        <td class="td-err" title="${(r.erro||'').replace(/"/g,'&quot;')}">${r.erro||'—'}</td>
+      </tr>`).join('');
+
+  const pgDiv = document.getElementById('i-pg');
+  pgDiv.style.display = total > IPG ? '' : 'none';
+  document.getElementById('i-pg-info').textContent = `${(iPg-1)*IPG+1}–${Math.min(iPg*IPG,total)} de ${total.toLocaleString('pt-BR')}`;
+  const btns = document.getElementById('i-pg-btns');
+  btns.innerHTML = `<button class="ipg-btn" onclick="iPgIr(${iPg-1})" ${iPg===1?'disabled':''}>‹</button>`;
+  const range=[...new Set([1,iPg-1,iPg,iPg+1,totalPgs])].filter(p=>p>=1&&p<=totalPgs).sort((a,b)=>a-b);
+  range.forEach((p,i) => { if(i>0&&p-range[i-1]>1) btns.innerHTML+=`<span style="padding:0 4px;color:var(--text3)">…</span>`; btns.innerHTML+=`<button class="ipg-btn ${p===iPg?'active':''}" onclick="iPgIr(${p})">${p}</button>`; });
+  btns.innerHTML += `<button class="ipg-btn" onclick="iPgIr(${iPg+1})" ${iPg===totalPgs?'disabled':''}>›</button>`;
+
+  document.querySelectorAll('table.itbl thead th').forEach((th,i) => { th.classList.toggle('isorted', ICOLS[i]===iSortCol); const ic=th.querySelector('.si'); if(ic) ic.textContent=ICOLS[i]===iSortCol?(iSortDir>0?'↑':'↓'):'↕'; });
+}
+
+function iPgIr(p) { iPg=p; iRender(); }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+try {
+  aplicarDados(DADOS_INJETADOS);
+  renderPendentes(typeof PENDENTES_INJETADOS !== 'undefined' ? PENDENTES_INJETADOS : []);
+} catch(e) {
+  document.getElementById('error-state').style.display = '';
+  document.getElementById('main-content').style.display = 'none';
+  const badge = document.getElementById('status-badge');
+  badge.className = 'badge badge-err';
+  badge.innerHTML = '<span class="dot"></span>Sem dados';
+  document.getElementById('sub-data').textContent = 'Nenhum dado carregado';
+}
+</script>
+</body>
+</html>
