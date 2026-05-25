@@ -1,0 +1,36 @@
+name: Atualizar Dashboard
+
+on:
+  schedule:
+    - cron: '0 12 * * 1-5'  # 09:10 horário de Brasília (UTC-3)
+    - cron: '0 18 * * 1-5'  # 15:10 horário de Brasília (UTC-3)
+  workflow_dispatch:          # permite rodar manualmente pelo GitHub
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install slack-sdk
+
+      - name: Rodar slack_reader.py
+        env:
+          SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+        run: python slack_reader.py
+
+      - name: Publicar dashboard atualizado
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add dashboard_2.html dados.json
+          git diff --staged --quiet || git commit -m "Dashboard atualizado automaticamente"
+          git push
