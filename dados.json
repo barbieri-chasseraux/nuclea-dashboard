@@ -1,6 +1,6 @@
 {
-  "data_ref": "2026-05-28",
-  "total_valor": 192579.99,
+  "data_ref": "2026-05-29",
+  "total_valor": 175242.13,
   "liquidados": {
     "qtd": 0,
     "valor": 0.0
@@ -10,20 +10,20 @@
     "valor": 0.0
   },
   "atrasados": {
-    "qtd": 28,
-    "valor": 4257.94
+    "qtd": 24,
+    "valor": 4821.36
   },
   "rejeitados": {
-    "qtd": 2,
-    "valor": 173.15
+    "qtd": 0,
+    "valor": 0.0
   },
   "falhas": {
-    "qtd": 6,
-    "valor": 973.28
+    "qtd": 7,
+    "valor": 1496.66
   },
   "banco_pendente": {
-    "qtd": 2765,
-    "valor": 187175.62
+    "qtd": 4202,
+    "valor": 168924.11
   },
-  "atualizado_em": "28/05/2026 23:00"
+  "atualizado_em": "29/05/2026 20:41"
 }
