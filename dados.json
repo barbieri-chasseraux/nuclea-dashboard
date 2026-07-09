@@ -1,6 +1,6 @@
 {
-  "data_ref": "2026-07-08",
-  "total_valor": 72024.88,
+  "data_ref": "2026-07-09",
+  "total_valor": 53974.52,
   "liquidados": {
     "qtd": 0,
     "valor": 703.82
@@ -23,7 +23,7 @@
   },
   "banco_pendente": {
     "qtd": 0,
-    "valor": 71303.54
+    "valor": 53253.18
   },
-  "atualizado_em": "08/07/2026 19:16"
+  "atualizado_em": "09/07/2026 15:16"
 }
