@@ -1,9 +1,9 @@
 {
   "data_ref": "2026-07-23",
-  "total_valor": 59537.5,
+  "total_valor": 89595.6,
   "liquidados": {
     "qtd": 0,
-    "valor": 3052.69
+    "valor": 2808.8
   },
   "devolvidos": {
     "qtd": 0,
@@ -19,11 +19,11 @@
   },
   "falhas": {
     "qtd": 0,
-    "valor": 895.01
+    "valor": 868.55
   },
   "banco_pendente": {
     "qtd": 0,
-    "valor": 55589.8
+    "valor": 85918.25
   },
-  "atualizado_em": "23/07/2026 14:07"
+  "atualizado_em": "23/07/2026 19:06"
 }
